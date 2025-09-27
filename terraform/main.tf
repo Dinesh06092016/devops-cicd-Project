@@ -99,7 +99,7 @@ resource "aws_security_group" "k8s_cluster_sg" {
 
 # K8s Master Node
 resource "aws_instance" "k8s_master" {
-  ami                    = "ami-0c55b159cbfafe1f0" # Ubuntu 22.04
+  ami                    = "ami-02d26659fd82cf299" # Ubuntu 22.04
   instance_type          = "t2.medium"
   key_name               = "22nd Sep"
   vpc_security_group_ids = [aws_security_group.k8s_cluster_sg.id]
@@ -135,7 +135,7 @@ resource "aws_instance" "k8s_master" {
 # K8s Worker Nodes
 resource "aws_instance" "k8s_worker" {
   count                  = 2
-  ami                    = "ami-0c55b159cbfafe1f0" # Ubuntu 22.04
+  ami                    = "ami-02d26659fd82cf299" # Ubuntu 22.04
   instance_type          = "t2.medium"
   key_name               = "22nd Sep"
   vpc_security_group_ids = [aws_security_group.k8s_cluster_sg.id]
