@@ -15,8 +15,7 @@ pipeline {
                         checkout scm
                     } catch (Exception e) {
                         echo "Default checkout failed, trying main branch..."
-                        git branch: 'main', 
-                        url: 'https://github.com/Dinesh06092016/devops-cicd-project.git'
+                        git branch: 'main', url: 'https://github.com/Dinesh06092016/devops-cicd-project.git'
                     }
                 }
             }
