@@ -25,8 +25,9 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    // Add your tests here
                     sh 'echo "Running tests..."'
+                    // Add actual tests
+                    sh 'docker run --rm $DOCKER_IMAGE:$DOCKER_TAG python -m pytest tests/ -v || true'
                 }
             }
         }
@@ -52,7 +53,7 @@ pipeline {
             steps {
                 dir('terraform') {
                     sh 'terraform init'
-                    sh 'terraform plan'
+                    sh 'terraform plan -out=tfplan'
                 }
             }
         }
@@ -60,7 +61,13 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
-                    sh 'terraform apply -auto-approve'
+                    sh 'terraform apply -auto-approve tfplan'
+                    // Capture Terraform outputs
+                    sh '''
+                        terraform output -raw master_ip > ../master_ip.txt
+                        terraform output -raw worker1_ip > ../worker1_ip.txt
+                        terraform output -raw worker2_ip > ../worker2_ip.txt
+                    '''
                 }
             }
         }
@@ -68,15 +75,25 @@ pipeline {
         stage('Update Ansible Inventory') {
             steps {
                 script {
-                    // This would be enhanced to dynamically get Terraform outputs
-                    sh '''
-                        echo "[master]" > ansible/hosts.ini
-                        echo "master ansible_host=<MASTER_IP> ansible_user=ubuntu" >> ansible/hosts.ini
-                        echo "" >> ansible/hosts.ini
-                        echo "[workers]" >> ansible/hosts.ini
-                        echo "worker1 ansible_host=<WORKER1_IP> ansible_user=ubuntu" >> ansible/hosts.ini
-                        echo "worker2 ansible_host=<WORKER2_IP> ansible_user=ubuntu" >> ansible/hosts.ini
-                    '''
+                    // Read IPs from Terraform outputs
+                    def master_ip = readFile('master_ip.txt').trim()
+                    def worker1_ip = readFile('worker1_ip.txt').trim()
+                    def worker2_ip = readFile('worker2_ip.txt').trim()
+                    
+                    sh """
+                        cat > ansible/hosts.ini << EOF
+[master]
+master ansible_host=${master_ip} ansible_user=ubuntu
+
+[workers]
+worker1 ansible_host=${worker1_ip} ansible_user=ubuntu
+worker2 ansible_host=${worker2_ip} ansible_user=ubuntu
+
+[all:vars]
+ansible_ssh_private_key_file=/tmp/ssh_key
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+EOF
+                    """
                 }
             }
         }
@@ -89,9 +106,18 @@ pipeline {
                         keyFileVariable: 'SSH_KEY'
                     )]) {
                         sh '''
-                            ansible-playbook -i hosts.ini setup.yml \
-                            --private-key $SSH_KEY \
-                            --ssh-common-args="-o StrictHostKeyChecking=no"
+                            # Copy key to expected location
+                            cp $SSH_KEY /tmp/ssh_key
+                            chmod 600 /tmp/ssh_key
+                            
+                            # Wait for instances to be ready
+                            sleep 30
+                            
+                            # Test connection first
+                            ansible all -i hosts.ini -m ping
+                            
+                            # Run playbook
+                            ansible-playbook -i hosts.ini setup.yml
                         '''
                     }
                 }
@@ -101,15 +127,35 @@ pipeline {
         stage('Kubernetes Deployment') {
             steps {
                 dir('k8s') {
-                    // Update deployment with new image tag
-                    sh "sed -i 's|your-dockerhub-username/flask-app:latest|${env.DOCKER_IMAGE}:${env.DOCKER_TAG}|g' deployment.yaml"
-                    
-                    sh '''
-                        kubectl apply -f deployment.yaml
-                        kubectl apply -f service.yaml
-                        kubectl get pods
-                        kubectl get services
-                    '''
+                    script {
+                        // Get kubeconfig from master node
+                        def master_ip = readFile('master_ip.txt').trim()
+                        
+                        withCredentials([sshUserPrivateKey(
+                            credentialsId: 'ansible-ssh-key',
+                            keyFileVariable: 'SSH_KEY'
+                        )]) {
+                            sh """
+                                # Copy kubeconfig from master
+                                ssh -o StrictHostKeyChecking=no -i $SSH_KEY ubuntu@${master_ip} "sudo cat /etc/kubernetes/admin.conf" > kubeconfig
+                                
+                                # Set KUBECONFIG
+                                export KUBECONFIG=\$(pwd)/kubeconfig
+                                
+                                # Update deployment with new image tag
+                                sed -i 's|dinesh06092016/flask-app:latest|${env.DOCKER_IMAGE}:${env.DOCKER_TAG}|g' deployment.yaml
+                                
+                                # Deploy to Kubernetes
+                                kubectl apply -f deployment.yaml
+                                kubectl apply -f service.yaml
+                                
+                                # Wait for deployment
+                                kubectl rollout status deployment/flask-app
+                                kubectl get pods
+                                kubectl get services
+                            """
+                        }
+                    }
                 }
             }
         }
@@ -118,6 +164,8 @@ pipeline {
     post {
         always {
             echo "Pipeline execution completed"
+            // Cleanup
+            sh 'rm -f master_ip.txt worker1_ip.txt worker2_ip.txt || true'
         }
         success {
             echo "Pipeline succeeded! Application deployed."
