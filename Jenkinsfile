@@ -1,7 +1,7 @@
 pipeline {
     agent any
     environment {
-        DOCKER_IMAGE = "dinesh06092016/flask-app"  // Replace with your DockerHub username
+        DOCKER_IMAGE = "dinesh06092016/flask-app"
         DOCKER_TAG = "${env.BUILD_NUMBER}"
         AWS_REGION = "ap-south-1"
     }
