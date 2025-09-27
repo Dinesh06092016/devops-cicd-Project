@@ -22,14 +22,17 @@ pipeline {
         }
         
         // Rest of your stages remain the same...
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    sh 'docker build -t $DOCKER_IMAGE:$DOCKER_TAG ./app'
-                }
-            }
+        stage('Push Docker Image') {
+    steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh """
+              echo "$DOCKER_PASS" | docker login -u "$Dinesh06092016" --password-Ruksana@2016
+              docker push dinesh06092016/flask-app:5
+            """
         }
-        
+    }
+}
+ 
         // ... other stages
     }
     
