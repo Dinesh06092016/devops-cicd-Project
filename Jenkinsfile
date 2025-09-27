@@ -1,56 +1,78 @@
 pipeline {
     agent any
+
     environment {
-        DOCKER_IMAGE = "your-dockerhub-username/flask-app"
-        DOCKER_TAG = "latest"
+        DOCKER_IMAGE = "dinesh06092016/flask-app"
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/Dinesh06092016/devops-cicd-project.git'
+                git branch: 'main',
+                    url: 'https://github.com/Dinesh06092016/devops-cicd-project.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE:$DOCKER_TAG ./app'
+                script {
+                    def imageTag = "${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
+                    sh "docker build -t ${imageTag} ."
+                }
             }
         }
 
         stage('Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-                    sh 'docker push $DOCKER_IMAGE:$DOCKER_TAG'
+                    script {
+                        def imageTag = "${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
+                        sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
+                        sh "docker push ${imageTag}"
+                    }
                 }
             }
         }
 
-        stage('Provision Infra with Terraform') {
+        stage('Terraform Apply') {
             steps {
                 dir('terraform') {
-                    sh 'terraform init'
-                    sh 'terraform apply -auto-approve'
+                    sh """
+                        terraform init
+                        terraform apply -auto-approve
+                    """
                 }
             }
         }
 
-        stage('Configure with Ansible') {
+        stage('Ansible Deploy') {
             steps {
                 dir('ansible') {
-                    sh 'ansible-playbook -i hosts.ini setup.yml'
+                    sh """
+                        ansible-playbook -i inventory.ini playbook.yml
+                    """
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Kubernetes Deploy') {
             steps {
                 dir('k8s') {
-                    sh 'kubectl apply -f deployment.yaml'
-                    sh 'kubectl apply -f service.yaml'
+                    sh """
+                        kubectl apply -f deployment.yaml
+                        kubectl apply -f service.yaml
+                    """
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline executed successfully!"
+        }
+        failure {
+            echo "Pipeline failed. Please check logs."
         }
     }
 }
