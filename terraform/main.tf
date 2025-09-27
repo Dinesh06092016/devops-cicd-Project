@@ -12,21 +12,29 @@ provider "aws" {
   region = "ap-south-1"
 }
 
-# Get the latest Ubuntu 22.04 AMI for ap-south-1
+# Get the latest Ubuntu 22.04 AMI for ap-south-1 - FIXED FILTER
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-22.04-*-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
   }
 
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
 }
+
+# Alternative: Use a specific known AMI ID for ap-south-1 if data source fails
+# ami = "ami-0f5ee92e2d63afc18"  # Ubuntu 22.04 LTS in ap-south-1
 
 # Security Group for Kubernetes Cluster
 resource "aws_security_group" "k8s_cluster_sg" {
@@ -80,7 +88,7 @@ resource "aws_security_group" "k8s_cluster_sg" {
 # K8s Master Node - Using t2.micro for Free Tier
 resource "aws_instance" "k8s_master" {
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t2.micro"  # Changed from t2.medium to t2.micro
+  instance_type          = "t2.micro"
   key_name               = "22nd Sep"
   vpc_security_group_ids = [aws_security_group.k8s_cluster_sg.id]
   
@@ -109,7 +117,7 @@ resource "aws_instance" "k8s_master" {
 resource "aws_instance" "k8s_worker" {
   count                  = 2
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t2.micro"  # Changed from t2.medium to t2.micro
+  instance_type          = "t2.micro"
   key_name               = "22nd Sep"
   vpc_security_group_ids = [aws_security_group.k8s_cluster_sg.id]
   
@@ -170,6 +178,5 @@ Worker Nodes: ${join(", ", aws_instance.k8s_worker[*].public_ip)}
 SSH to master: ssh -i "22nd-Sep.pem" ubuntu@${aws_eip.k8s_master_eip.public_ip}
 
 Note: Using t2.micro instances for Free Tier compatibility.
-For better performance, consider upgrading to t2.medium after testing.
 EOT
 }
