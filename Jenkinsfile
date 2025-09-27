@@ -1,41 +1,56 @@
 pipeline {
     agent any
-
     environment {
-        DOCKER_USER = credentials('docker-username')   // Jenkins credential ID for DockerHub username
-        DOCKER_PASS = credentials('docker-password')   // Jenkins credential ID for DockerHub password
+        DOCKER_IMAGE = "your-dockerhub-username/flask-app"
+        DOCKER_TAG = "latest"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git branch: 'main', url: 'https://github.com/Dinesh06092016/devops-cicd-project.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    def imageTag = "dinesh06092016/devops-cicd-project:${env.BUILD_NUMBER}"
-                    sh "docker build -t ${imageTag} ."
-                }
+                sh 'docker build -t $DOCKER_IMAGE:$DOCKER_TAG ./app'
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                script {
-                    def imageTag = "dinesh06092016/devops-cicd-project:${env.BUILD_NUMBER}"
-                    sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-                    sh "docker push ${imageTag}"
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                    sh 'docker push $DOCKER_IMAGE:$DOCKER_TAG'
                 }
             }
         }
-    }
 
-    post {
-        always {
-            echo "Pipeline execution completed"
+        stage('Provision Infra with Terraform') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform init'
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
+
+        stage('Configure with Ansible') {
+            steps {
+                dir('ansible') {
+                    sh 'ansible-playbook -i hosts.ini setup.yml'
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                dir('k8s') {
+                    sh 'kubectl apply -f deployment.yaml'
+                    sh 'kubectl apply -f service.yaml'
+                }
+            }
         }
     }
 }
