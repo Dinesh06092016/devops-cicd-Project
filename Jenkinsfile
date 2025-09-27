@@ -17,7 +17,7 @@ pipeline {
             steps {
                 script {
                     def imageTag = "${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
-                    sh "docker build -t ${imageTag} ."
+                    sh "docker build -t ${imageTag} -f app/Dockerfile app"
                 }
             }
         }
