@@ -4,21 +4,15 @@
   become: yes
 
   tasks:
+    - name: Clean yum cache
+      ansible.builtin.shell: yum clean all
+
     - name: Update all packages
       ansible.builtin.yum:
         name: "*"
         state: latest
 
-    - name: Install required utilities
-      ansible.builtin.yum:
-        name:
-          - git
-          - curl
-          - wget
-          - unzip
-        state: present
-
-    - name: Enable Docker on Amazon Linux 2
+    - name: Enable Docker via amazon-linux-extras
       ansible.builtin.shell: amazon-linux-extras enable docker
       args:
         warn: false
@@ -28,7 +22,7 @@
         name: docker
         state: present
 
-    - name: Start and enable Docker service
+    - name: Start and enable Docker
       ansible.builtin.service:
         name: docker
         state: started
@@ -40,7 +34,7 @@
         groups: docker
         append: yes
 
-    - name: Install Python3 pip (if not installed)
+    - name: Install Python3 pip
       ansible.builtin.yum:
         name: python3-pip
         state: present
