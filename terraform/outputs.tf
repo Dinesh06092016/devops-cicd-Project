@@ -1,35 +1,34 @@
-# outputs.tf
-
-# Output the master and worker instance IPs
-output "k8s_instance_ips" {
+output "instance_ips" {
   value = {
-    master  = "3.111.32.154"
-    workers = ["13.232.255.82"]
+    master  = aws_instance.k8s_master.public_ip
+    workers = [for w in aws_instance.k8s_worker : w.public_ip]
   }
 }
 
-# Output the DNS of the master node
+output "k8s_instance_ips" {
+  value = {
+    master  = aws_instance.k8s_master.public_ip
+    workers = [for w in aws_instance.k8s_worker : w.public_ip]
+  }
+}
+
 output "k8s_master_dns" {
-  value = "ec2-3-111-32-154.ap-south-1.compute.amazonaws.com"
+  value = aws_instance.k8s_master.public_dns
 }
 
-# Output the master IP
 output "k8s_master_ip" {
-  value = "3.111.32.154"
+  value = aws_instance.k8s_master.public_ip
 }
 
-# Output the worker IPs
 output "k8s_worker_ips" {
-  value = [
-    "13.232.255.82"
-  ]
+  value = [for w in aws_instance.k8s_worker : w.public_ip]
 }
 
-# Output SSH commands to access nodes
-output k8s_ssh_commands = {
-  "master" = "ssh -i ~/.ssh/22nd-Sep.pem ubuntu@ec2-3-111-32-154.ap-south-1.compute.amazonaws.com"
-  "workers" = [
-    "ssh -i ~/.ssh/22nd-Sep.pem ubuntu@ec2-13-232-255-82.ap-south-1.compute.amazonaws.com",
-  ]
-}
+output "k8s_ssh_commands" {
+  value = {
+    master = "ssh -i ~/.ssh/22nd-sep.pem ubuntu@${aws_instance.k8s_master.public_dns}"
+    workers = [
+      for w in aws_instance.k8s_worker : "ssh -i ~/.ssh/22nd-sep.pem ubuntu@${w.public_dns}"
+    ]
+  }
 }
