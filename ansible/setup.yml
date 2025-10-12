@@ -31,9 +31,7 @@
     - name: Enable Kubernetes via amazon-linux-extras
       ansible.builtin.shell: amazon-linux-extras enable kubernetes1.27
       args:
-        warn: false
-
-    - name: Install Kubernetes packages
+           - name: Install Kubernetes packages
       ansible.builtin.yum:
         name:
           - kubelet
