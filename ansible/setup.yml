@@ -1,45 +1,83 @@
 ---
-- name: Setup EC2 instances
+- name: Setup EC2 instances for Kubernetes
   hosts: all
   become: yes
+  vars:
+    docker_version: "20.10"
 
   tasks:
-    - name: Clean yum cache
-      ansible.builtin.shell: yum clean all
-
-    - name: Update all packages
-      ansible.builtin.yum:
+    - name: Ensure system is updated (skip broken repos)
+      yum:
         name: "*"
         state: latest
+        disable_repo:
+          - kubernetes  # skip Kubernetes repo during full system update
 
-    - name: Enable Docker via amazon-linux-extras
-      ansible.builtin.shell: amazon-linux-extras enable docker
-      args:
-        warn: false
+    - name: Install required packages
+      yum:
+        name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+          - git
+        state: present
+
+    - name: Add Docker repository
+      yum_repository:
+        name: docker
+        description: Docker CE Stable - x86_64
+        baseurl: https://download.docker.com/linux/centos/7/x86_64/stable
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        state: present
 
     - name: Install Docker
-      ansible.builtin.yum:
-        name: docker
+      yum:
+        name: "docker-ce-{{ docker_version }}*"
         state: present
 
-    - name: Start and enable Docker
-      ansible.builtin.service:
+    - name: Enable and start Docker
+      systemd:
         name: docker
-        state: started
         enabled: yes
+        state: started
 
-    - name: Add ec2-user to docker group
-      ansible.builtin.user:
-        name: ec2-user
-        groups: docker
-        append: yes
-
-    - name: Install Python3 pip
-      ansible.builtin.yum:
-        name: python3-pip
+    - name: Add Kubernetes repository
+      yum_repository:
+        name: kubernetes
+        description: Kubernetes
+        baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+        gpgcheck: yes
+        repo_gpgcheck: yes
+        gpgkey:
+          - https://packages.cloud.google.com/yum/doc/yum-key.gpg
+          - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
         state: present
 
-    - name: Upgrade pip
-      ansible.builtin.pip:
-        name: pip
-        state: latest
+    - name: Install Kubernetes components
+      yum:
+        name:
+          - kubeadm
+          - kubelet
+          - kubectl
+        state: present
+        enablerepo: kubernetes
+
+    - name: Enable and start kubelet
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+
+    - name: Disable SELinux temporarily
+      command: setenforce 0
+      ignore_errors: yes
+
+    - name: Disable swap
+      command: swapoff -a
+
+    - name: Persist swap off in /etc/fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: 'swap'
+        state: absent
