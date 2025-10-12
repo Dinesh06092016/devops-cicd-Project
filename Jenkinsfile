@@ -2,32 +2,29 @@ pipeline {
     agent any
 
     environment {
-        // Use the actual IDs of your Jenkins credentials
-        AWS_CREDENTIALS = credentials('aws-credentials-id')
-        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-credentials-id')
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred') // DockerHub credentials ID
+        AWS_CREDENTIALS = credentials('aws-cred')             // AWS credentials ID in Jenkins
+        IMAGE_NAME = 'dinesh06092016/flask-app'
+        IMAGE_TAG = 'latest'
     }
 
     stages {
-
         stage('Checkout SCM') {
             steps {
-                checkout scm
+                git url: 'https://github.com/Dinesh06092016/devops-cicd-Project.git', branch: 'main'
             }
         }
 
         stage('Workspace Debug') {
             steps {
-                sh 'pwd'
-                sh 'ls -l'
+                sh 'pwd && ls -l'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                dir('app') {
-                    sh """
-                        docker build -t dinesh06092016/flask-app:latest -f Dockerfile .
-                    """
+                script {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -f app/Dockerfile app"
                 }
             }
         }
@@ -36,8 +33,8 @@ pipeline {
             steps {
                 script {
                     sh """
-                        echo "${DOCKER_HUB_CREDENTIALS_PSW}" | docker login -u "${DOCKER_HUB_CREDENTIALS_USR}" --password-stdin
-                        docker push dinesh06092016/flask-app:latest
+                        echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS_USR --password-stdin
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
                     """
                 }
             }
@@ -46,14 +43,12 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
-                    script {
-                        withEnv([
-                            "AWS_ACCESS_KEY_ID=${AWS_CREDENTIALS_USR}",
-                            "AWS_SECRET_ACCESS_KEY=${AWS_CREDENTIALS_PSW}"
-                        ]) {
-                            sh 'terraform init'
-                            sh 'terraform apply -auto-approve'
-                        }
+                    withEnv([
+                        "AWS_ACCESS_KEY_ID=${AWS_CREDENTIALS_USR}",
+                        "AWS_SECRET_ACCESS_KEY=${AWS_CREDENTIALS_PSW}"
+                    ]) {
+                        sh 'terraform init'
+                        sh 'terraform apply -auto-approve'
                     }
                 }
             }
@@ -73,7 +68,7 @@ pipeline {
             echo 'Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed. Check the logs for details.'
+            echo 'Pipeline failed. Please check logs.'
         }
     }
 }
