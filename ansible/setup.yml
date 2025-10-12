@@ -1,43 +1,63 @@
+---
 - name: Setup EC2 instances for Kubernetes
   hosts: all
   become: yes
-
   tasks:
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
     - name: Ensure system is updated (skip broken repos)
-      yum:
+      ansible.builtin.yum:
         name: "*"
         state: latest
-        disablerepo: kubernetes    # correct parameter
-        skip_broken: yes           # skip broken packages instead of failing
+        skip_broken: yes
 
     - name: Install required packages
-      yum:
+      ansible.builtin.yum:
         name:
           - yum-utils
           - device-mapper-persistent-data
           - lvm2
-          - git
         state: present
 
-    - name: Add Kubernetes repo
-      yum_repository:
+    - name: Add Kubernetes repo for Amazon Linux 2
+      ansible.builtin.yum_repository:
         name: kubernetes
-        description: Kubernetes
+        description: Kubernetes repo
         baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
         gpgcheck: yes
         repo_gpgcheck: yes
         gpgkey:
           - https://packages.cloud.google.com/yum/doc/yum-key.gpg
           - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-        state: present
-        skip_if_unavailable: yes   # Skip if the repo is temporarily down
+        enabled: yes
+
+    - name: Set SELinux in permissive mode (if present)
+      ansible.builtin.command: setenforce 0
+      ignore_errors: yes
 
     - name: Install Kubernetes components
-      yum:
+      ansible.builtin.yum:
         name:
-          - kubeadm
-          - kubelet
-          - kubectl
+          - kubeadm-1.26.3-0
+          - kubelet-1.26.3-0
+          - kubectl-1.26.3-0
         state: present
         enablerepo: kubernetes
-        skip_broken: yes           # Skip any broken packages
+
+    - name: Enable kubelet service
+      ansible.builtin.systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+
+    - name: Disable swap (required by Kubernetes)
+      ansible.builtin.command: swapoff -a
+      ignore_errors: yes
+
+    - name: Ensure swap is disabled in fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^(/swap.*)'
+        replace: '# \1'
