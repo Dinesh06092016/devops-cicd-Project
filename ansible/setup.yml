@@ -2,24 +2,28 @@
 - name: Setup Kubernetes cluster and deploy Flask app
   hosts: all
   become: yes
-
   vars:
     flask_app_image: "dinesh06092016/flask-app:latest"
-    app_name: "flask-app"
-    kube_namespace: "default"
+    app_port: 5000
 
   tasks:
+    #####################################
+    # Gather Facts
+    #####################################
     - name: Gather Facts
       ansible.builtin.setup:
 
-    - name: Update yum packages
+    #####################################
+    # Update system packages
+    #####################################
+    - name: Update all packages
       yum:
         name: "*"
         state: latest
 
-    ######################
-    # Install Docker
-    ######################
+    #####################################
+    # Install Docker via Amazon Linux Extras
+    #####################################
     - name: Enable Docker via amazon-linux-extras
       shell: amazon-linux-extras enable docker -y
       args:
@@ -36,91 +40,39 @@
         state: started
         enabled: yes
 
-    - name: Add ec2-user to docker group
+    - name: Add ec2-user to Docker group
       user:
         name: ec2-user
         groups: docker
         append: yes
 
-    ######################
-    # Install Kubernetes
-    ######################
-    - name: Add Kubernetes yum repository
+    #####################################
+    # Install Kubernetes tools
+    #####################################
+    - name: Add Kubernetes repo
       yum_repository:
         name: kubernetes
-        description: Kubernetes Repository
+        description: Kubernetes Repo
         baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
         gpgcheck: yes
         repo_gpgcheck: yes
-        gpgkey:
-          - https://packages.cloud.google.com/yum/doc/yum-key.gpg
-          - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+        gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg
+                 https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
         enabled: yes
 
-    - name: Install Kubernetes tools
+    - name: Install kubeadm, kubelet, kubectl
       yum:
         name:
           - kubelet
           - kubeadm
           - kubectl
         state: present
-        disable_excludes: kubernetes
+        disable_gpg_check: yes
 
     - name: Enable and start kubelet
       systemd:
         name: kubelet
-        state: started
         enabled: yes
+        state: started
 
-    ######################
-    # Initialize Master Node
-    ######################
-    - name: Initialize Kubernetes master
-      shell: kubeadm init --pod-network-cidr=10.244.0.0/16
-      when: "'master' in group_names"
-      register: kubeadm_init
-      ignore_errors: yes
-
-    - name: Set kubeconfig for ec2-user
-      copy:
-        src: /etc/kubernetes/admin.conf
-        dest: /home/ec2-user/.kube/config
-        remote_src: yes
-      when: "'master' in group_names"
-
-    ######################
-    # Deploy Flannel network (for pod communication)
-    ######################
-    - name: Deploy Flannel CNI network
-      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
-      become: false
-      when: "'master' in group_names"
-
-    ######################
-    # Deploy Flask App
-    ######################
-    - name: Create Kubernetes Deployment for Flask App
-      k8s:
-        state: present
-        definition:
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: "{{ app_name }}"
-            namespace: "{{ kube_namespace }}"
-          spec:
-            replicas: 1
-            selector:
-              matchLabels:
-                app: "{{ app_name }}"
-            template:
-              metadata:
-                labels:
-                  app: "{{ app_name }}"
-              spec:
-                containers:
-                  - name: "{{ app_name }}"
-                    image: "{{ flask_app_image }}"
-                    ports:
-                      - containerPort: 5000
-      when: "'master' in group_names"
+    #############################
