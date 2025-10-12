@@ -1,7 +1,7 @@
 ---
 - name: Setup EC2 instances for Kubernetes
   hosts: all
-  become: yes
+  become: true
   tasks:
 
     - name: Gather facts
@@ -12,9 +12,9 @@
         path: /etc/yum.repos.d/kubernetes.repo
         state: absent
 
-    - name: Ensure system is updated (skip broken repos)
+    - name: Ensure system is updated
       ansible.builtin.yum:
-        name: '*'
+        name: "*"
         state: latest
         update_cache: yes
         skip_broken: yes
@@ -22,37 +22,43 @@
     - name: Install required packages
       ansible.builtin.yum:
         name:
-          - git
-          - curl
-          - wget
-          - vim
           - yum-utils
           - device-mapper-persistent-data
           - lvm2
+          - curl
+          - git
+          - bash-completion
+          - conntrack
+          - socat
         state: present
 
-    - name: Enable Kubernetes via amazon-linux-extras
-      ansible.builtin.shell: amazon-linux-extras enable kubernetes1.24
-      args:
-        warn: false
+    - name: Add Kubernetes repo for Amazon Linux 2 (EL8)
+      ansible.builtin.get_url:
+        url: https://packages.cloud.google.com/yum/repos/kubernetes-el8-x86_64/kubernetes.repo
+        dest: /etc/yum.repos.d/kubernetes.repo
+        mode: '0644'
 
-    - name: Install Kubernetes packages
+    - name: Refresh yum cache after adding Kubernetes repo
       ansible.builtin.yum:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-        state: present
-
-    - name: Enable and start kubelet service
-      ansible.builtin.systemd:
-        name: kubelet
-        enabled: yes
-        state: started
+        name: "*"
+        state: latest
+        update_cache: yes
 
     - name: Disable swap (required for Kubernetes)
       ansible.builtin.shell: |
         swapoff -a
         sed -i '/swap/d' /etc/fstab
-      args:
-        warn: false
+
+    - name: Enable Kubernetes via amazon-linux-extras
+      ansible.builtin.shell: amazon-linux-extras enable kubernetes1.27
+
+    - name: Install Docker
+      ansible.builtin.yum:
+        name: docker
+        state: present
+
+    - name: Enable and start Docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
