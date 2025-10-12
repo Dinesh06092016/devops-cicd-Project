@@ -2,23 +2,28 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred')
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred') // Your DockerHub credentials ID
+        IMAGE_NAME = 'dinesh06092016/flask-app'
+        IMAGE_TAG = 'latest'
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/Dinesh06092016/devops-cicd-Project.git'
+                git url: 'https://github.com/Dinesh06092016/devops-cicd-Project.git', branch: 'main'
+            }
+        }
+
+        stage('Workspace Debug') {
+            steps {
+                sh 'pwd && ls -l'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh 'docker build -t dinesh06092016/flask-app:latest -f app/Dockerfile app'
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -f app/Dockerfile app"
                 }
             }
         }
@@ -28,7 +33,7 @@ pipeline {
                 script {
                     sh """
                         echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS_USR --password-stdin
-                        docker push dinesh06092016/flask-app:latest
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
                     """
                 }
             }
