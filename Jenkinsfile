@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-credentials-id')
+        // AWS credentials, but optional
         AWS_CREDENTIALS = credentials('aws-credentials-id')
     }
 
@@ -13,38 +13,37 @@ pipeline {
             }
         }
 
-        stage('Workspace Debug') {
-            steps {
-                sh 'pwd'
-                sh 'ls -l'
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh 'docker build -t dinesh06092016/flask-app:latest -f app/Dockerfile app'
-                }
+                sh 'docker build -t dinesh06092016/flask-app:latest -f app/Dockerfile app'
             }
         }
 
         stage('Push to DockerHub') {
             steps {
-                script {
-                    sh """
-                        echo ${DOCKER_HUB_CREDENTIALS_PSW} | docker login -u ${DOCKER_HUB_CREDENTIALS_USR} --password-stdin
-                        docker push dinesh06092016/flask-app:latest
-                    """
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-credentials-id',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                    sh 'docker push dinesh06092016/flask-app:latest'
                 }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                dir('terraform') {
-                    script {
-                        sh 'terraform init'
-                        sh 'terraform apply -auto-approve'
+                script {
+                    if (env.AWS_CREDENTIALS) {
+                        dir('terraform') {
+                            withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_CREDENTIALS_USR}", "AWS_SECRET_ACCESS_KEY=${env.AWS_CREDENTIALS_PSW}"]) {
+                                sh 'terraform init'
+                                sh 'terraform apply -auto-approve'
+                            }
+                        }
+                    } else {
+                        echo "AWS credentials not found. Skipping Terraform deployment."
                     }
                 }
             }
@@ -54,7 +53,11 @@ pipeline {
             steps {
                 dir('ansible') {
                     script {
-                        sh 'ansible-playbook -i hosts.ini deploy.yml'
+                        if (fileExists('deploy.yml')) {
+                            sh 'ansible-playbook -i hosts.ini deploy.yml'
+                        } else {
+                            echo "deploy.yml not found. Skipping Ansible deployment."
+                        }
                     }
                 }
             }
@@ -62,11 +65,11 @@ pipeline {
     }
 
     post {
-        success {
-            echo 'Pipeline completed successfully!'
-        }
         failure {
-            echo 'Pipeline failed. Please check logs.'
+            echo "Pipeline failed. Check the logs for details."
+        }
+        success {
+            echo "Pipeline completed successfully!"
         }
     }
 }
