@@ -7,6 +7,12 @@
     - name: Gather facts
       ansible.builtin.setup:
 
+    - name: Remove old Kubernetes repo if exists
+      ansible.builtin.file:
+        path: /etc/yum.repos.d/kubernetes.repo
+        state: absent
+      ignore_errors: yes
+
     - name: Ensure system is updated (skip broken repos)
       ansible.builtin.yum:
         name: "*"
@@ -49,10 +55,6 @@
       ansible.builtin.command: setenforce 0
       ignore_errors: yes
 
-    - name: Disable swap
-      ansible.builtin.command: swapoff -a
-      ignore_errors: yes
-
     - name: Install Kubernetes components
       ansible.builtin.yum:
         name:
@@ -62,8 +64,8 @@
         state: present
         disable_gpg_check: yes
 
-    - name: Reload systemd and enable kubelet
+    - name: Enable and start kubelet
       ansible.builtin.systemd:
         name: kubelet
         enabled: yes
-        state: starte
+        state: started
