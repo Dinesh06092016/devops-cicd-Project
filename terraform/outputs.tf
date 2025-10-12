@@ -28,9 +28,9 @@ output "k8s_worker_ips" {
 # Output SSH commands to access nodes
 output "k8s_ssh_commands" {
   value = {
-    master  = "ssh -i ~/.ssh/22nd-Sep.pem ubuntu@ec2-3-111-32-154.ap-south-1.compute.amazonaws.com"
+    master  = "ssh -i ~/.ssh/22nd-sep.pem ubuntu@ec2-3-111-32-154.ap-south-1.compute.amazonaws.com"
     workers = [
-      "ssh -i ~/.ssh/22nd-Sep.pem ubuntu@ec2-13-232-255-82.ap-south-1.compute.amazonaws.com"
+      "ssh -i ~/.ssh/22nd-sep.pem ubuntu@ec2-13-232-255-82.ap-south-1.compute.amazonaws.com"
     ]
   }
 }
