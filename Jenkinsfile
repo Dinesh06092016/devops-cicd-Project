@@ -57,7 +57,13 @@ pipeline {
         stage('Deploy with Ansible') {
             steps {
                 dir('ansible') {
-                    sh 'ansible-playbook -i hosts.ini deploy.yml'
+                   script {
+                // List files to make sure deploy.yml and hosts.ini exist
+                sh 'echo "Listing Ansible directory:"'
+                sh 'ls -l'
+
+                // Run Ansible playbook
+                sh 'ansible-playbook -i hosts.ini deploy.yml'
                 }
             }
         }
