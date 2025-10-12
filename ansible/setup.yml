@@ -11,61 +11,48 @@
       ansible.builtin.file:
         path: /etc/yum.repos.d/kubernetes.repo
         state: absent
-      ignore_errors: yes
 
     - name: Ensure system is updated (skip broken repos)
       ansible.builtin.yum:
-        name: "*"
+        name: '*'
         state: latest
-        disable_gpg_check: yes
         update_cache: yes
-      ignore_errors: yes
+        skip_broken: yes
 
     - name: Install required packages
       ansible.builtin.yum:
         name:
+          - git
           - curl
           - wget
           - vim
-          - git
           - yum-utils
           - device-mapper-persistent-data
           - lvm2
         state: present
 
-    - name: Add Kubernetes repo for Amazon Linux 2 (EL8)
-      ansible.builtin.yum_repository:
-        name: kubernetes
-        description: Kubernetes repository
-        baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
-        enabled: yes
-        gpgcheck: yes
-        repo_gpgcheck: yes
-        gpgkey:
-          - https://packages.cloud.google.com/yum/doc/yum-key.gpg
-          - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+    - name: Enable Kubernetes via amazon-linux-extras
+      ansible.builtin.shell: amazon-linux-extras enable kubernetes1.24
+      args:
+        warn: false
 
-    - name: Refresh yum cache after adding Kubernetes repo
-      ansible.builtin.yum:
-        name: "*"
-        state: latest
-        update_cache: yes
-
-    - name: Set SELinux in permissive mode (if present)
-      ansible.builtin.command: setenforce 0
-      ignore_errors: yes
-
-    - name: Install Kubernetes components
+    - name: Install Kubernetes packages
       ansible.builtin.yum:
         name:
-          - kubelet-1.27.6-0
-          - kubeadm-1.27.6-0
-          - kubectl-1.27.6-0
+          - kubelet
+          - kubeadm
+          - kubectl
         state: present
-        disable_gpg_check: yes
 
-    - name: Enable and start kubelet
+    - name: Enable and start kubelet service
       ansible.builtin.systemd:
         name: kubelet
         enabled: yes
         state: started
+
+    - name: Disable swap (required for Kubernetes)
+      ansible.builtin.shell: |
+        swapoff -a
+        sed -i '/swap/d' /etc/fstab
+      args:
+        warn: false
