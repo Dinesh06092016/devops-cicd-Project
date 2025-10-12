@@ -2,42 +2,57 @@
 - name: Setup Kubernetes cluster and deploy Flask app
   hosts: all
   become: yes
+
   vars:
-    pod_network_cidr: "10.244.0.0/16"   # Flannel default
     flask_app_image: "dinesh06092016/flask-app:latest"
+    app_name: "flask-app"
+    kube_namespace: "default"
 
   tasks:
-    - name: Update yum and install dependencies
+    - name: Gather Facts
+      ansible.builtin.setup:
+
+    - name: Update yum packages
       yum:
-        name:
-          - git
-          - curl
-          - wget
-          - unzip
-        state: present
-        update_cache: yes
+        name: "*"
+        state: latest
+
+    ######################
+    # Install Docker
+    ######################
+    - name: Enable Docker via amazon-linux-extras
+      shell: amazon-linux-extras enable docker -y
+      args:
+        warn: false
 
     - name: Install Docker
-      shell: |
-        amazon-linux-extras enable docker
-        yum install -y docker
-        systemctl enable docker
-        systemctl start docker
+      yum:
+        name: docker
+        state: present
 
-    - name: Add ec2-user to Docker group
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add ec2-user to docker group
       user:
         name: ec2-user
         groups: docker
         append: yes
 
-    - name: Install Kubernetes repository
+    ######################
+    # Install Kubernetes
+    ######################
+    - name: Add Kubernetes yum repository
       yum_repository:
         name: kubernetes
-        description: Kubernetes Repo
+        description: Kubernetes Repository
         baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
         gpgcheck: yes
         repo_gpgcheck: yes
-        gpgkey: 
+        gpgkey:
           - https://packages.cloud.google.com/yum/doc/yum-key.gpg
           - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
         enabled: yes
@@ -54,95 +69,58 @@
     - name: Enable and start kubelet
       systemd:
         name: kubelet
-        enabled: yes
         state: started
+        enabled: yes
 
-- name: Initialize Kubernetes master node
-  hosts: master
-  become: yes
-  tasks:
-    - name: Initialize the cluster
-      command: kubeadm init --pod-network-cidr={{ pod_network_cidr }}
-      args:
-        creates: /etc/kubernetes/admin.conf
+    ######################
+    # Initialize Master Node
+    ######################
+    - name: Initialize Kubernetes master
+      shell: kubeadm init --pod-network-cidr=10.244.0.0/16
+      when: "'master' in group_names"
       register: kubeadm_init
+      ignore_errors: yes
 
-    - name: Set up kubeconfig for ec2-user
-      shell: |
-        mkdir -p /home/ec2-user/.kube
-        cp -i /etc/kubernetes/admin.conf /home/ec2-user/.kube/config
-        chown ec2-user:ec2-user /home/ec2-user/.kube/config
-
-    - name: Install Flannel network
-      shell: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
-      environment:
-        KUBECONFIG: /home/ec2-user/.kube/config
-
-    - name: Get join command for workers
-      command: kubeadm token create --print-join-command
-      register: join_cmd
-
-    - name: Save join command for worker nodes
+    - name: Set kubeconfig for ec2-user
       copy:
-        content: "{{ join_cmd.stdout }}"
-        dest: /home/ec2-user/kube_join.sh
-        mode: '0755'
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ec2-user/.kube/config
+        remote_src: yes
+      when: "'master' in group_names"
 
-- name: Join worker nodes to cluster
-  hosts: workers
-  become: yes
-  tasks:
-    - name: Copy join script from master
-      fetch:
-        src: /home/ec2-user/kube_join.sh
-        dest: /tmp/kube_join.sh
-        flat: yes
-      delegate_to: "{{ groups['master'][0] }}"
+    ######################
+    # Deploy Flannel network (for pod communication)
+    ######################
+    - name: Deploy Flannel CNI network
+      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+      become: false
+      when: "'master' in group_names"
 
-    - name: Join node to Kubernetes cluster
-      shell: sh /tmp/kube_join.sh
-
-- name: Deploy Flask app to Kubernetes
-  hosts: master
-  become: yes
-  tasks:
-    - name: Create Kubernetes deployment for Flask app
-      shell: |
-        kubectl apply -f - <<EOF
-        apiVersion: apps/v1
-        kind: Deployment
-        metadata:
-          name: flask-app
-        spec:
-          replicas: 1
-          selector:
-            matchLabels:
-              app: flask-app
-          template:
-            metadata:
-              labels:
-                app: flask-app
-            spec:
-              containers:
-              - name: flask-app
-                image: {{ flask_app_image }}
-                ports:
-                - containerPort: 5000
-        EOF
-      environment:
-        KUBECONFIG: /home/ec2-user/.kube/config
-
-    - name: Expose Flask app via NodePort
-      shell: |
-        kubectl expose deployment flask-app --type=NodePort --name=flask-service --port=5000 --target-port=5000
-      environment:
-        KUBECONFIG: /home/ec2-user/.kube/config
-
-    - name: Show service details
-      shell: kubectl get svc flask-service -o wide
-      environment:
-        KUBECONFIG: /home/ec2-user/.kube/config
-      register: svc_output
-
-    - debug:
-        msg: "{{ svc_output.stdout_lines }}"
+    ######################
+    # Deploy Flask App
+    ######################
+    - name: Create Kubernetes Deployment for Flask App
+      k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ app_name }}"
+            namespace: "{{ kube_namespace }}"
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: "{{ app_name }}"
+            template:
+              metadata:
+                labels:
+                  app: "{{ app_name }}"
+              spec:
+                containers:
+                  - name: "{{ app_name }}"
+                    image: "{{ flask_app_image }}"
+                    ports:
+                      - containerPort: 5000
+      when: "'master' in group_names"
