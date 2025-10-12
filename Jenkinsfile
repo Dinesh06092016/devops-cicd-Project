@@ -51,7 +51,7 @@ pipeline {
             steps {
                 dir('ansible') {
                     sh """
-                       ansible-playbook -i hosts.ini setup.yml --private-key /var/lib/jenkins/.ssh/22nd-sep.pem
+                       ansible-playbook -i hosts.ini setup.yml --private-key /var/lib/jenkins/.ssh/22nd-Sep.pem
                     """
                 }
             }
