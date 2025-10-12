@@ -1,288 +1,59 @@
-Started by user admin
-Obtained Jenkinsfile from git https://github.com/Dinesh06092016/devops-cicd-Project.git
-[Pipeline] Start of Pipeline
-[Pipeline] node
-Running on Jenkins in /var/lib/jenkins/workspace/devops-cicd-pipeline
-[Pipeline] {
-[Pipeline] stage
-[Pipeline] { (Declarative: Checkout SCM)
-[Pipeline] checkout
-Selected Git installation does not exist. Using Default
-The recommended git tool is: NONE
-No credentials specified
- > git rev-parse --resolve-git-dir /var/lib/jenkins/workspace/devops-cicd-pipeline/.git # timeout=10
-Fetching changes from the remote Git repository
- > git config remote.origin.url https://github.com/Dinesh06092016/devops-cicd-Project.git # timeout=10
-Fetching upstream changes from https://github.com/Dinesh06092016/devops-cicd-Project.git
- > git --version # timeout=10
- > git --version # 'git version 2.43.0'
- > git fetch --tags --force --progress -- https://github.com/Dinesh06092016/devops-cicd-Project.git +refs/heads/*:refs/remotes/origin/* # timeout=10
- > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
-Checking out Revision baae3f6175a91acebd8431cb23d9f480402178e3 (refs/remotes/origin/main)
- > git config core.sparsecheckout # timeout=10
- > git checkout -f baae3f6175a91acebd8431cb23d9f480402178e3 # timeout=10
-Commit message: "Update setup.yml"
- > git rev-list --no-walk 903664b04a3825939d50dfa51b9d2001c02b8a9e # timeout=10
-[Pipeline] }
-[Pipeline] // stage
-[Pipeline] withEnv
-[Pipeline] {
-[Pipeline] withCredentials
-Masking supported pattern matches of $DOCKER_HUB_CREDENTIALS or $DOCKER_HUB_CREDENTIALS_PSW
-[Pipeline] {
-[Pipeline] withEnv
-[Pipeline] {
-[Pipeline] stage
-[Pipeline] { (Checkout SCM)
-[Pipeline] git
-Selected Git installation does not exist. Using Default
-The recommended git tool is: NONE
-No credentials specified
- > git rev-parse --resolve-git-dir /var/lib/jenkins/workspace/devops-cicd-pipeline/.git # timeout=10
-Fetching changes from the remote Git repository
- > git config remote.origin.url https://github.com/Dinesh06092016/devops-cicd-Project.git # timeout=10
-Fetching upstream changes from https://github.com/Dinesh06092016/devops-cicd-Project.git
- > git --version # timeout=10
- > git --version # 'git version 2.43.0'
- > git fetch --tags --force --progress -- https://github.com/Dinesh06092016/devops-cicd-Project.git +refs/heads/*:refs/remotes/origin/* # timeout=10
- > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
-Checking out Revision baae3f6175a91acebd8431cb23d9f480402178e3 (refs/remotes/origin/main)
- > git config core.sparsecheckout # timeout=10
- > git checkout -f baae3f6175a91acebd8431cb23d9f480402178e3 # timeout=10
- > git branch -a -v --no-abbrev # timeout=10
- > git branch -D main # timeout=10
- > git checkout -b main baae3f6175a91acebd8431cb23d9f480402178e3 # timeout=10
-Commit message: "Update setup.yml"
-[Pipeline] }
-[Pipeline] // stage
-[Pipeline] stage
-[Pipeline] { (Workspace Debug)
-[Pipeline] sh
-+ pwd
-/var/lib/jenkins/workspace/devops-cicd-pipeline
-+ ls -l
-total 40
--rw-r--r-- 1 jenkins jenkins 1834 Oct 12 12:29 Jenkinsfile
-drwxr-xr-x 2 jenkins jenkins 4096 Oct 12 13:15 ansible
-drwxr-xr-x 2 jenkins jenkins 4096 Oct 12 13:12 ansible@tmp
-drwxr-xr-x 2 jenkins jenkins 4096 Oct 12 07:05 app
-drwxr-xr-x 2 jenkins jenkins 4096 Oct 12 12:20 app@tmp
-drwxr-xr-x 2 jenkins jenkins 4096 Oct 12 07:05 k8s
--rwxr-xr-x 1 jenkins jenkins 4582 Oct 12 07:05 setup_project.sh
-drwxr-xr-x 3 jenkins jenkins 4096 Oct 12 13:12 terraform
-drwxr-xr-x 2 jenkins jenkins 4096 Oct 12 13:12 terraform@tmp
-[Pipeline] }
-[Pipeline] // stage
-[Pipeline] stage
-[Pipeline] { (Build Docker Image)
-[Pipeline] script
-[Pipeline] {
-[Pipeline] sh
-+ docker build -t dinesh06092016/flask-app:latest -f app/Dockerfile app
-DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
-            Install the buildx component to build images with BuildKit:
-            https://docs.docker.com/go/buildx/
+---
+- name: Setup EC2 instances for Kubernetes
+  hosts: all
+  become: yes
+  tasks:
 
-Sending build context to Docker daemon  4.096kB
+    - name: Gather facts
+      ansible.builtin.setup:
 
-Step 1/6 : FROM python:3.9-slim
- ---> 455962325b3b
-Step 2/6 : WORKDIR /app
- ---> Using cache
- ---> 7b813b5c8a1c
-Step 3/6 : COPY requirements.txt .
- ---> Using cache
- ---> fb5d042b6fac
-Step 4/6 : RUN pip install -r requirements.txt
- ---> Using cache
- ---> 4ac18d36fff5
-Step 5/6 : COPY . .
- ---> Using cache
- ---> 9fcf10681c2d
-Step 6/6 : CMD ["python", "app.py"]
- ---> Using cache
- ---> ae704ed3f132
-Successfully built ae704ed3f132
-Successfully tagged dinesh06092016/flask-app:latest
-[Pipeline] }
-[Pipeline] // script
-[Pipeline] }
-[Pipeline] // stage
-[Pipeline] stage
-[Pipeline] { (Push to DockerHub)
-[Pipeline] script
-[Pipeline] {
-[Pipeline] sh
-Warning: A secret was passed to "sh" using Groovy String interpolation, which is insecure.
-		 Affected argument(s) used the following variable(s): [DOCKER_HUB_CREDENTIALS_PSW]
-		 See https://jenkins.io/redirect/groovy-string-interpolation for details.
-+ echo ****
-+ docker login -u dinesh06092016 --password-stdin
-Login Succeeded
-+ docker push dinesh06092016/flask-app:latest
-The push refers to repository [docker.io/dinesh06092016/flask-app]
-532d6f1f3bae: Preparing
-aba4cee7ef60: Preparing
-2f7ddd62d634: Preparing
-c51978df895d: Preparing
-066418b3f856: Preparing
-a72fb8065c60: Preparing
-fb1a3962b6aa: Preparing
-1d46119d249f: Preparing
-a72fb8065c60: Waiting
-fb1a3962b6aa: Waiting
-1d46119d249f: Waiting
-aba4cee7ef60: Layer already exists
-532d6f1f3bae: Layer already exists
-c51978df895d: Layer already exists
-2f7ddd62d634: Layer already exists
-066418b3f856: Layer already exists
-1d46119d249f: Layer already exists
-a72fb8065c60: Layer already exists
-fb1a3962b6aa: Layer already exists
-latest: digest: sha256:b3ca9685c3e4bad41a4c12291e33f4fd8b2e59c0e152b097dd2e29aaeaf9b07f size: 1990
-[Pipeline] }
-[Pipeline] // script
-[Pipeline] }
-[Pipeline] // stage
-[Pipeline] stage
-[Pipeline] { (Terraform Apply)
-[Pipeline] dir
-Running in /var/lib/jenkins/workspace/devops-cicd-pipeline/terraform
-[Pipeline] {
-[Pipeline] script
-[Pipeline] {
-[Pipeline] sh
-+ terraform init
-[0m[1mInitializing the backend...[0m
-[0m[1mInitializing provider plugins...[0m
-- Reusing previous version of hashicorp/aws from the dependency lock file
-- Using previously-installed hashicorp/aws v6.14.1
+    - name: Ensure system is updated (skip broken repos)
+      ansible.builtin.yum:
+        name: "*"
+        state: latest
+        disable_gpg_check: yes
+        update_cache: yes
+      ignore_errors: yes
 
-[0m[1m[32mTerraform has been successfully initialized![0m[32m[0m
-[0m[32m
-You may now begin working with Terraform. Try running "terraform plan" to see
-any changes that are required for your infrastructure. All Terraform commands
-should now work.
+    - name: Install required packages
+      ansible.builtin.yum:
+        name:
+          - curl
+          - wget
+          - vim
+          - git
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+        state: present
 
-If you ever set or change modules or backend configuration for Terraform,
-rerun this command to reinitialize your working directory. If you forget, other
-commands will detect it and remind you to do so if necessary.[0m
-[Pipeline] sh
-+ terraform apply -auto-approve
-[0m[1mdata.aws_ami.amazon_linux: Reading...[0m[0m
-[0m[1maws_security_group.k8s_cluster_sg: Refreshing state... [id=sg-08a93a0c5713ef89c][0m
-[0m[1mdata.aws_ami.amazon_linux: Read complete after 0s [id=ami-00be607689b5407d1][0m
-[0m[1maws_instance.k8s_master: Refreshing state... [id=i-081a08f0a379cd138][0m
-[0m[1maws_instance.k8s_worker[0]: Refreshing state... [id=i-04d17cc0b51cbde08][0m
+    - name: Add Kubernetes repo for Amazon Linux 2 (EL8)
+      ansible.builtin.yum_repository:
+        name: kubernetes
+        description: Kubernetes repository
+        baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el8-x86_64
+        enabled: yes
+        gpgcheck: yes
+        repo_gpgcheck: yes
+        gpgkey:
+          - https://packages.cloud.google.com/yum/doc/yum-key.gpg
+          - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
 
-[0m[1m[32mNo changes.[0m[1m Your infrastructure matches the configuration.[0m
+    - name: Set SELinux in permissive mode (if present)
+      ansible.builtin.command: setenforce 0
+      ignore_errors: yes
 
-[0mTerraform has compared your real infrastructure against your configuration
-and found no differences, so no changes are needed.
-[0m[1m[32m
-Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
-[0m[0m[1m[32m
-Outputs:
+    - name: Install Kubernetes components
+      ansible.builtin.yum:
+        name:
+          - kubelet-1.27.6-0
+          - kubeadm-1.27.6-0
+          - kubectl-1.27.6-0
+        state: present
+        disable_gpg_check: yes
 
-[0minstance_ips = {
-  "master" = "3.111.32.154"
-  "workers" = [
-    "13.232.255.82",
-  ]
-}
-k8s_master_ip = "3.111.32.154"
-k8s_ssh_commands = {
-  "master" = "ssh -i ~/.ssh/22nd-Sep.pem ubuntu@3.111.32.154"
-  "workers" = [
-    "ssh -i ~/.ssh/22nd-Sep.pem ubuntu@13.232.255.82",
-  ]
-}
-k8s_worker_ips = [
-  "13.232.255.82",
-]
-[Pipeline] }
-[Pipeline] // script
-[Pipeline] }
-[Pipeline] // dir
-[Pipeline] }
-[Pipeline] // stage
-[Pipeline] stage
-[Pipeline] { (Deploy with Ansible)
-[Pipeline] dir
-Running in /var/lib/jenkins/workspace/devops-cicd-pipeline/ansible
-[Pipeline] {
-[Pipeline] script
-[Pipeline] {
-[Pipeline] sh
-+ ansible-playbook -i hosts.ini setup.yml
-
-PLAY [Setup EC2 instances for Kubernetes] **************************************
-
-TASK [Gathering Facts] *********************************************************
-[WARNING]: Platform linux on host 13.232.255.82 is using the discovered Python
-interpreter at /usr/bin/python3.7, but future installation of another Python
-interpreter could change the meaning of that path. See
-https://docs.ansible.com/ansible-
-core/2.16/reference_appendices/interpreter_discovery.html for more information.
-[WARNING]: Platform linux on host 3.111.32.154 is using the discovered Python
-interpreter at /usr/bin/python3.7, but future installation of another Python
-interpreter could change the meaning of that path. See
-https://docs.ansible.com/ansible-
-core/2.16/reference_appendices/interpreter_discovery.html for more information.
-ok: [13.232.255.82]
-ok: [3.111.32.154]
-
-TASK [Gather facts] ************************************************************
-ok: [3.111.32.154]
-ok: [13.232.255.82]
-
-TASK [Ensure system is updated (skip broken repos)] ****************************
-ok: [3.111.32.154]
-ok: [13.232.255.82]
-
-TASK [Install required packages] ***********************************************
-ok: [3.111.32.154]
-ok: [13.232.255.82]
-
-TASK [Add Kubernetes repo for Amazon Linux 2] **********************************
-changed: [3.111.32.154]
-changed: [13.232.255.82]
-
-TASK [Set SELinux in permissive mode (if present)] *****************************
-fatal: [3.111.32.154]: FAILED! => {"changed": true, "cmd": ["setenforce", "0"], "delta": "0:00:00.004095", "end": "2025-10-12 13:16:01.351587", "msg": "non-zero return code", "rc": 1, "start": "2025-10-12 13:16:01.347492", "stderr": "setenforce: SELinux is disabled", "stderr_lines": ["setenforce: SELinux is disabled"], "stdout": "", "stdout_lines": []}
-...ignoring
-fatal: [13.232.255.82]: FAILED! => {"changed": true, "cmd": ["setenforce", "0"], "delta": "0:00:00.027607", "end": "2025-10-12 13:16:01.720347", "msg": "non-zero return code", "rc": 1, "start": "2025-10-12 13:16:01.692740", "stderr": "setenforce: SELinux is disabled", "stderr_lines": ["setenforce: SELinux is disabled"], "stdout": "", "stdout_lines": []}
-...ignoring
-
-TASK [Install Kubernetes components] *******************************************
-fatal: [3.111.32.154]: FAILED! => {"changed": false, "msg": "Failure talking to yum: failure: repodata/repomd.xml from kubernetes: [Errno 256] No more mirrors to try.\nhttps://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64/repodata/repomd.xml: [Errno 14] HTTPS Error 404 - Not Found"}
-fatal: [13.232.255.82]: FAILED! => {"changed": false, "msg": "Failure talking to yum: failure: repodata/repomd.xml from kubernetes: [Errno 256] No more mirrors to try.\nhttps://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64/repodata/repomd.xml: [Errno 14] HTTPS Error 404 - Not Found"}
-
-PLAY RECAP *********************************************************************
-13.232.255.82              : ok=6    changed=2    unreachable=0    failed=1    skipped=0    rescued=0    ignored=1   
-3.111.32.154               : ok=6    changed=2    unreachable=0    failed=1    skipped=0    rescued=0    ignored=1   
-
-[Pipeline] }
-[Pipeline] // script
-[Pipeline] }
-[Pipeline] // dir
-[Pipeline] }
-[Pipeline] // stage
-[Pipeline] stage
-[Pipeline] { (Declarative: Post Actions)
-[Pipeline] echo
-Pipeline failed. Please check logs.
-[Pipeline] }
-[Pipeline] // stage
-[Pipeline] }
-[Pipeline] // withEnv
-[Pipeline] }
-[Pipeline] // withCredentials
-[Pipeline] }
-[Pipeline] // withEnv
-[Pipeline] }
-[Pipeline] // node
-[Pipeline] End of Pipeline
-ERROR: script returned exit code 2
-Finished: FAILURE
+    - name: Enable and start kubelet
+      ansible.builtin.systemd:
+        name: kubelet
+        enabled: yes
+        state: started
