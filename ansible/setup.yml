@@ -1,54 +1,42 @@
 ---
-- name: Setup Kubernetes cluster and deploy Flask app
+- name: Setup EC2 instances
   hosts: all
-  become: yes
-  tasks:
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
 
+  tasks:
     - name: Update all packages
-      amazon.aws.aws_ssm:
-        name: dummy   # placeholder if needed
       ansible.builtin.yum:
         name: "*"
         state: latest
 
     - name: Install required packages
-      yum:
+      ansible.builtin.yum:
         name:
-          - git
           - python3
           - python3-pip
-          - curl
-          - vim
+          - git
         state: present
 
-    - name: Install Docker
-      amazon.aws.package:
-        name: docker
+    - name: Ensure pip packages are installed
+      ansible.builtin.pip:
+        name:
+          - flask
+          - boto3
         state: present
 
-    - name: Start and enable Docker service
-      service:
-        name: docker
-        state: started
-        enabled: true
+    - name: Deploy application code (copy from Jenkins workspace)
+      ansible.builtin.copy:
+        src: /var/lib/jenkins/workspace/devops-cicd-pipeline/app/
+        dest: /home/ubuntu/app/
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
 
-    - name: Add user to docker group
-      user:
-        name: "{{ ansible_user }}"
-        groups: docker
-        append: yes
-
-    - name: Pull latest Flask Docker image
-      docker_image:
-        name: dinesh06092016/flask-app
-        source: pull
-        tag: latest
-
-    - name: Run Flask app container
-      docker_container:
-        name: flask-app
-        image: dinesh06092016/flask-app:latest
-        state: started
-        restart_policy: always
-        ports:
-          - "5000:5000"
+    - name: Run the Flask app (example)
+      ansible.builtin.shell: |
+        pkill -f app.py || true
+        nohup python3 /home/ubuntu/app/app.py &
+      args:
+        executable: /bin/bash
