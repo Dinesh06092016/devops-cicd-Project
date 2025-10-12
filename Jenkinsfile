@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred') // Your DockerHub credentials ID
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred') // DockerHub credentials ID
+        AWS_CREDENTIALS = credentials('aws-cred')             // AWS credentials ID in Jenkins
         IMAGE_NAME = 'dinesh06092016/flask-app'
         IMAGE_TAG = 'latest'
     }
@@ -42,7 +43,10 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
-                    script {
+                    withEnv([
+                        "AWS_ACCESS_KEY_ID=${AWS_CREDENTIALS_USR}",
+                        "AWS_SECRET_ACCESS_KEY=${AWS_CREDENTIALS_PSW}"
+                    ]) {
                         sh 'terraform init'
                         sh 'terraform apply -auto-approve'
                     }
@@ -53,9 +57,7 @@ pipeline {
         stage('Deploy with Ansible') {
             steps {
                 dir('ansible') {
-                    script {
-                        sh 'ansible-playbook -i hosts.ini deploy.yml'
-                    }
+                    sh 'ansible-playbook -i hosts.ini deploy.yml'
                 }
             }
         }
