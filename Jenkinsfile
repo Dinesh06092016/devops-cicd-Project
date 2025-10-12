@@ -15,7 +15,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh 'docker build -t $DOCKER_HUB_REPO:${BUILD_NUMBER} .'
+                    sh 'docker build -t $DOCKER_HUB_REPO:${BUILD_NUMBER} -f flask-app/Dockerfile .'
                 }
             }
         }
