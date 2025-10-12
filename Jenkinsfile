@@ -5,7 +5,7 @@ pipeline {
         // Fetch AWS credentials stored in Jenkins with ID 'aws-id'
         AWS_CREDENTIALS = credentials('aws-cred')
         // Fetch DockerHub credentials stored in Jenkins with ID 'docker-hub-id'
-        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-id')
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred')
     }
 
     stages {
