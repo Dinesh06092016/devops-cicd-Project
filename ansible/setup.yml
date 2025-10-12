@@ -1,7 +1,10 @@
 ---
-- name: Setup Kubernetes nodes on Amazon Linux
+- name: Setup Kubernetes cluster and deploy Flask app
   hosts: all
   become: yes
+  vars:
+    pod_network_cidr: "10.244.0.0/16"   # Flannel default
+    flask_app_image: "dinesh06092016/flask-app:latest"
 
   tasks:
     - name: Update yum and install dependencies
@@ -14,9 +17,10 @@
         state: present
         update_cache: yes
 
-    - name: Install Docker on Amazon Linux 2
+    - name: Install Docker
       shell: |
-        amazon-linux-extras install docker -y
+        amazon-linux-extras enable docker
+        yum install -y docker
         systemctl enable docker
         systemctl start docker
 
@@ -26,27 +30,119 @@
         groups: docker
         append: yes
 
-    - name: Install Kubernetes tools (kubectl, kubeadm, kubelet)
-      shell: |
-        cat <<EOF > /etc/yum.repos.d/kubernetes.repo
-        [kubernetes]
-        name=Kubernetes
-        baseurl=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
-        enabled=1
-        gpgcheck=1
-        gpgkey=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
-        exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
-        EOF
-        yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
-        systemctl enable kubelet
-        systemctl start kubelet
+    - name: Install Kubernetes repository
+      yum_repository:
+        name: kubernetes
+        description: Kubernetes Repo
+        baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+        gpgcheck: yes
+        repo_gpgcheck: yes
+        gpgkey: 
+          - https://packages.cloud.google.com/yum/doc/yum-key.gpg
+          - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+        enabled: yes
 
-    - name: Verify Docker and Kubernetes installation
+    - name: Install Kubernetes tools
+      yum:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        disable_excludes: kubernetes
+
+    - name: Enable and start kubelet
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+
+- name: Initialize Kubernetes master node
+  hosts: master
+  become: yes
+  tasks:
+    - name: Initialize the cluster
+      command: kubeadm init --pod-network-cidr={{ pod_network_cidr }}
+      args:
+        creates: /etc/kubernetes/admin.conf
+      register: kubeadm_init
+
+    - name: Set up kubeconfig for ec2-user
       shell: |
-        docker --version
-        kubeadm version
-        kubectl version --client
-      register: verify_output
+        mkdir -p /home/ec2-user/.kube
+        cp -i /etc/kubernetes/admin.conf /home/ec2-user/.kube/config
+        chown ec2-user:ec2-user /home/ec2-user/.kube/config
+
+    - name: Install Flannel network
+      shell: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+      environment:
+        KUBECONFIG: /home/ec2-user/.kube/config
+
+    - name: Get join command for workers
+      command: kubeadm token create --print-join-command
+      register: join_cmd
+
+    - name: Save join command for worker nodes
+      copy:
+        content: "{{ join_cmd.stdout }}"
+        dest: /home/ec2-user/kube_join.sh
+        mode: '0755'
+
+- name: Join worker nodes to cluster
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Copy join script from master
+      fetch:
+        src: /home/ec2-user/kube_join.sh
+        dest: /tmp/kube_join.sh
+        flat: yes
+      delegate_to: "{{ groups['master'][0] }}"
+
+    - name: Join node to Kubernetes cluster
+      shell: sh /tmp/kube_join.sh
+
+- name: Deploy Flask app to Kubernetes
+  hosts: master
+  become: yes
+  tasks:
+    - name: Create Kubernetes deployment for Flask app
+      shell: |
+        kubectl apply -f - <<EOF
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: flask-app
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: flask-app
+          template:
+            metadata:
+              labels:
+                app: flask-app
+            spec:
+              containers:
+              - name: flask-app
+                image: {{ flask_app_image }}
+                ports:
+                - containerPort: 5000
+        EOF
+      environment:
+        KUBECONFIG: /home/ec2-user/.kube/config
+
+    - name: Expose Flask app via NodePort
+      shell: |
+        kubectl expose deployment flask-app --type=NodePort --name=flask-service --port=5000 --target-port=5000
+      environment:
+        KUBECONFIG: /home/ec2-user/.kube/config
+
+    - name: Show service details
+      shell: kubectl get svc flask-service -o wide
+      environment:
+        KUBECONFIG: /home/ec2-user/.kube/config
+      register: svc_output
 
     - debug:
-        msg: "{{ verify_output.stdout_lines }}"
+        msg: "{{ svc_output.stdout_lines }}"
