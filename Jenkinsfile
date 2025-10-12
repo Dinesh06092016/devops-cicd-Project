@@ -2,8 +2,9 @@ pipeline {
     agent any
 
     environment {
-        AWS_ACCESS_KEY_ID     = credentials('aws-cred')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-cred')
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred') // Your DockerHub credentials ID
+        IMAGE_NAME = 'dinesh06092016/flask-app'
+        IMAGE_TAG = 'latest'
     }
 
     stages {
@@ -13,21 +14,27 @@ pipeline {
             }
         }
 
+        stage('Workspace Debug') {
+            steps {
+                sh 'pwd && ls -l'
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                dir('app') {
-                    sh 'docker build -t dinesh06092016/flask-app:latest .'
+                script {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -f app/Dockerfile app"
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', passwordVariable: 'DOCKER_HUB_CREDENTIALS_PSW', usernameVariable: 'DOCKER_HUB_CREDENTIALS')]) {
-                    sh '''
-                        echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS --password-stdin
-                        docker push dinesh06092016/flask-app:latest
-                    '''
+                script {
+                    sh """
+                        echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS_USR --password-stdin
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
                 }
             }
         }
@@ -35,8 +42,10 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
-                    sh 'terraform init'
-                    sh 'terraform apply -auto-approve'
+                    script {
+                        sh 'terraform init'
+                        sh 'terraform apply -auto-approve'
+                    }
                 }
             }
         }
@@ -44,7 +53,9 @@ pipeline {
         stage('Deploy with Ansible') {
             steps {
                 dir('ansible') {
-                    sh 'ansible-playbook -i hosts.ini setup.yml --private-key /var/lib/jenkins/.ssh/22nd-Sep.pem'
+                    script {
+                        sh 'ansible-playbook -i hosts.ini deploy.yml'
+                    }
                 }
             }
         }
@@ -55,7 +66,7 @@ pipeline {
             echo 'Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed. Check the logs for details.'
+            echo 'Pipeline failed. Please check logs.'
         }
     }
 }
