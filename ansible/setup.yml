@@ -1,9 +1,8 @@
 ---
-- name: Setup EC2 instances for Kubernetes
-  hosts: all
+- hosts: all
   become: yes
-
   tasks:
+
     - name: Gather facts
       ansible.builtin.setup:
 
@@ -14,33 +13,40 @@
 
     - name: Ensure system is updated (skip broken repos)
       ansible.builtin.yum:
-        name: '*'
+        name: "*"
         state: latest
         skip_broken: yes
 
     - name: Install required packages
       ansible.builtin.yum:
         name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
           - curl
-          - wget
-          - vim
-          - git
-          - bash-completion
         state: present
 
     - name: Enable Kubernetes via amazon-linux-extras
-      ansible.builtin.shell: amazon-linux-extras enable kubernetes1.27
-      args:
-           - name: Install Kubernetes packages
+      ansible.builtin.shell:
+        cmd: "amazon-linux-extras enable kubernetes1.27"
+        warn: false
+
+    - name: Refresh yum cache
+      ansible.builtin.shell:
+        cmd: "yum makecache"
+        warn: false
+
+    - name: Install Kubernetes packages
       ansible.builtin.yum:
         name:
           - kubelet
           - kubeadm
           - kubectl
         state: present
+        disable_gpg_check: yes
 
-    - name: Enable and start kubelet service
-      ansible.builtin.service:
+    - name: Enable and start kubelet
+      ansible.builtin.systemd:
         name: kubelet
+        enabled: yes
         state: started
-        enabled: true
