@@ -2,22 +2,15 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_USER = 'dinesh06092016'
-        DOCKER_HUB_PASSWORD = credentials('docker-hub-password') // Jenkins credential ID
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key')        // Jenkins credential ID
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')    // Jenkins credential ID
-        PEM_PATH = '/var/lib/jenkins/.ssh/22nd-Sep.pem'          // Correct PEM filename
+        // Replace these with the actual Jenkins credential IDs
+        AWS_ACCESS_KEY_ID     = credentials('aws-access-key')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                checkout([$class: 'GitSCM',
-                    branches: [[name: 'main']],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/Dinesh06092016/devops-cicd-Project.git'
-                    ]]
-                ])
+                git url: 'https://github.com/Dinesh06092016/devops-cicd-Project.git', branch: 'main'
             }
         }
 
@@ -31,22 +24,24 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                sh '''
-                echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USER --password-stdin
-                docker push dinesh06092016/flask-app:latest
-                '''
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-cred', 
+                    usernameVariable: 'DOCKER_USER', 
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push dinesh06092016/flask-app:latest
+                    '''
+                }
             }
         }
 
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
-                    sh '''
-                    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-                    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-                    terraform init
-                    terraform apply -auto-approve
-                    '''
+                    sh 'terraform init'
+                    sh 'terraform apply -auto-approve'
                 }
             }
         }
@@ -54,13 +49,16 @@ pipeline {
         stage('Deploy with Ansible') {
             steps {
                 dir('ansible') {
-                    sh "ansible-playbook -i hosts.ini setup.yml --private-key ${PEM_PATH}"
+                    sh 'ansible-playbook -i hosts.ini setup.yml --private-key /var/lib/jenkins/.ssh/22nd-Sep.pem'
                 }
             }
         }
     }
 
     post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
         failure {
             echo 'Pipeline failed. Check logs for details.'
         }
