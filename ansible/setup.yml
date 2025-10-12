@@ -1,52 +1,84 @@
 ---
-- hosts: all
+- name: Setup EC2 instances for Kubernetes
+  hosts: all
   become: yes
+  vars:
+    kubernetes_version: "v1.27.16"
+    crictl_version: "v1.27.0"
+    cni_plugins_version: "v1.3.0"
   tasks:
 
     - name: Gather facts
       ansible.builtin.setup:
 
-    - name: Remove old Kubernetes repo if exists
-      ansible.builtin.file:
-        path: /etc/yum.repos.d/kubernetes.repo
-        state: absent
-
-    - name: Ensure system is updated (skip broken repos)
+    - name: Update system packages
       ansible.builtin.yum:
         name: "*"
         state: latest
-        skip_broken: yes
 
     - name: Install required packages
       ansible.builtin.yum:
         name:
-          - yum-utils
-          - device-mapper-persistent-data
-          - lvm2
           - curl
+          - wget
+          - vim
+          - git
+          - socat
+          - ebtables
+          - iproute
+          - iptables
+          - conntrack-tools
+          - ipset
+          - jq
         state: present
 
-    - name: Enable Kubernetes via amazon-linux-extras
-      ansible.builtin.shell:
-        cmd: "amazon-linux-extras enable kubernetes1.27"
-        warn: false
+    - name: Download Kubernetes binaries
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/{{ kubernetes_version }}/bin/linux/amd64/{{ item }}"
+        dest: "/tmp/{{ item }}"
+        mode: "0755"
+      loop:
+        - kubeadm
+        - kubelet
+        - kubectl
 
-    - name: Refresh yum cache
-      ansible.builtin.shell:
-        cmd: "yum makecache"
-        warn: false
+    - name: Move Kubernetes binaries to /usr/local/bin
+      ansible.builtin.command:
+        cmd: mv /tmp/{{ item }} /usr/local/bin/
+      loop:
+        - kubeadm
+        - kubelet
+        - kubectl
 
-    - name: Install Kubernetes packages
-      ansible.builtin.yum:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-        state: present
-        disable_gpg_check: yes
+    - name: Download crictl
+      ansible.builtin.get_url:
+        url: "https://github.com/kubernetes-sigs/cri-tools/releases/download/{{ crictl_version }}/crictl-{{ crictl_version }}-linux-amd64.tar.gz"
+        dest: "/tmp/crictl.tar.gz"
+
+    - name: Extract crictl
+      ansible.builtin.unarchive:
+        src: /tmp/crictl.tar.gz
+        dest: /usr/local/bin/
+        remote_src: yes
 
     - name: Enable and start kubelet
       ansible.builtin.systemd:
         name: kubelet
         enabled: yes
         state: started
+
+    - name: Enable bridged traffic for iptables
+      ansible.builtin.sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: 1
+        state: present
+        reload: yes
+
+    - name: Disable swap
+      ansible.builtin.command: swapoff -a
+
+    - name: Ensure swap entry is removed from fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^(.*swap.*)$'
+        replace: '# \1'
