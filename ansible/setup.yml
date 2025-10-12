@@ -2,18 +2,18 @@
   become: yes
   tasks:
     - name: Install dependencies
-      apt:
+      yum:
         name: "{{ item }}"
         state: present
         update_cache: yes
       loop:
         - docker.io
-        - apt-transport-https
+        - yum-transport-https
         - curl
 
     - name: Install Kubernetes packages
       shell: |
-        curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-        echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | tee /etc/apt/sources.list.d/kubernetes.list
-        apt-get update
-        apt-get install -y kubelet kubeadm kubectl
+        curl -s https://packages.cloud.google.com/yum/doc/apt-key.gpg | yum-key add -
+        echo "deb https://yum.kubernetes.io/ kubernetes-xenial main" | tee /etc/yum/sources.list.d/kubernetes.list
+        yum update
+        yum install -y kubelet kubeadm kubectl
