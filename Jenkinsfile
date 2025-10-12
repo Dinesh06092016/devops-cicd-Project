@@ -2,29 +2,28 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-cred') // DockerHub credentials ID
-        AWS_CREDENTIALS = credentials('aws-cred')             // AWS credentials ID in Jenkins
-        IMAGE_NAME = 'dinesh06092016/flask-app'
-        IMAGE_TAG = 'latest'
+        DOCKER_HUB_CREDENTIALS = credentials('docker-hub-credentials-id')
+        AWS_CREDENTIALS = credentials('aws-credentials-id')
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                git url: 'https://github.com/Dinesh06092016/devops-cicd-Project.git', branch: 'main'
+                checkout scm
             }
         }
 
         stage('Workspace Debug') {
             steps {
-                sh 'pwd && ls -l'
+                sh 'pwd'
+                sh 'ls -l'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -f app/Dockerfile app"
+                    sh 'docker build -t dinesh06092016/flask-app:latest -f app/Dockerfile app'
                 }
             }
         }
@@ -33,8 +32,8 @@ pipeline {
             steps {
                 script {
                     sh """
-                        echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS_USR --password-stdin
-                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        echo ${DOCKER_HUB_CREDENTIALS_PSW} | docker login -u ${DOCKER_HUB_CREDENTIALS_USR} --password-stdin
+                        docker push dinesh06092016/flask-app:latest
                     """
                 }
             }
@@ -43,10 +42,7 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
-                    withEnv([
-                        "AWS_ACCESS_KEY_ID=${AWS_CREDENTIALS_USR}",
-                        "AWS_SECRET_ACCESS_KEY=${AWS_CREDENTIALS_PSW}"
-                    ]) {
+                    script {
                         sh 'terraform init'
                         sh 'terraform apply -auto-approve'
                     }
@@ -57,13 +53,9 @@ pipeline {
         stage('Deploy with Ansible') {
             steps {
                 dir('ansible') {
-                   script {
-                // List files to make sure deploy.yml and hosts.ini exist
-                sh 'echo "Listing Ansible directory:"'
-                sh 'ls -l'
-
-                // Run Ansible playbook
-                sh 'ansible-playbook -i hosts.ini deploy.yml'
+                    script {
+                        sh 'ansible-playbook -i hosts.ini deploy.yml'
+                    }
                 }
             }
         }
