@@ -58,7 +58,7 @@ resource "aws_security_group" "k8s_cluster_sg" {
 
 resource "aws_instance" "k8s_master" {
   ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "t3.micro"
+  instance_type          = "t3.small"
   key_name               = "22nd Sep"
   vpc_security_group_ids = [aws_security_group.k8s_cluster_sg.id]
   
@@ -78,7 +78,7 @@ resource "aws_instance" "k8s_master" {
 resource "aws_instance" "k8s_worker" {
   count                  = 1  # Start with 1 worker to reduce costs
   ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "t3.micro"
+  instance_type          = "t3.small"
   key_name               = "22nd Sep"
   vpc_security_group_ids = [aws_security_group.k8s_cluster_sg.id]
   
