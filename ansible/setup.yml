@@ -1,19 +1,85 @@
-- hosts: all
+---
+- name: Setup Kubernetes nodes
+  hosts: all
   become: yes
   tasks:
-    - name: Install dependencies
-      yum:
+
+    - name: Update apt and install required dependencies
+      apt:
         name: "{{ item }}"
         state: present
         update_cache: yes
       loop:
-        - docker.io
-        - yum-transport-https
+        - apt-transport-https
+        - ca-certificates
         - curl
+        - gnupg
+        - lsb-release
+        - software-properties-common
 
-    - name: Install Kubernetes packages
-      shell: |
-        curl -s https://packages.cloud.google.com/yum/doc/apt-key.gpg | yum-key add -
-        echo "deb https://yum.kubernetes.io/ kubernetes-xenial main" | tee /etc/yum/sources.list.d/kubernetes.list
-        yum update
-        yum install -y kubelet kubeadm kubectl
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker APT repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Install Docker Engine
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add user to Docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version
+
+    - name: Display Docker version
+      debug:
+        msg: "{{ docker_version.stdout }}"
+
+    # (Optional) Kubernetes setup starts here — only if needed
+    - name: Add Kubernetes apt key
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+
+    - name: Add Kubernetes apt repository
+      apt_repository:
+        repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+        state: present
+
+    - name: Install kubeadm, kubelet, and kubectl
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: yes
+
+    - name: Hold Kubernetes packages at current version
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: held
