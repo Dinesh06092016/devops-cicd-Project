@@ -2,77 +2,53 @@
 - name: Setup Kubernetes cluster and deploy Flask app
   hosts: all
   become: yes
-  vars:
-    flask_app_image: "dinesh06092016/flask-app:latest"
-    app_port: 5000
-
   tasks:
-    #####################################
-    # Gather Facts
-    #####################################
-    - name: Gather Facts
-      ansible.builtin.setup:
 
-    #####################################
-    # Update system packages
-    #####################################
     - name: Update all packages
-      yum:
+      amazon.aws.aws_ssm:
+        name: dummy   # placeholder if needed
+      ansible.builtin.yum:
         name: "*"
         state: latest
 
-    #####################################
-    # Install Docker via Amazon Linux Extras
-    #####################################
-    - name: Enable Docker via amazon-linux-extras
-      shell: amazon-linux-extras enable docker -y
-      args:
-        warn: false
+    - name: Install required packages
+      yum:
+        name:
+          - git
+          - python3
+          - python3-pip
+          - curl
+          - vim
+        state: present
 
     - name: Install Docker
-      yum:
+      amazon.aws.package:
         name: docker
         state: present
 
     - name: Start and enable Docker service
-      systemd:
+      service:
         name: docker
         state: started
-        enabled: yes
+        enabled: true
 
-    - name: Add ec2-user to Docker group
+    - name: Add user to docker group
       user:
-        name: ec2-user
+        name: "{{ ansible_user }}"
         groups: docker
         append: yes
 
-    #####################################
-    # Install Kubernetes tools
-    #####################################
-    - name: Add Kubernetes repo
-      yum_repository:
-        name: kubernetes
-        description: Kubernetes Repo
-        baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
-        gpgcheck: yes
-        repo_gpgcheck: yes
-        gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg
-                 https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
-        enabled: yes
+    - name: Pull latest Flask Docker image
+      docker_image:
+        name: dinesh06092016/flask-app
+        source: pull
+        tag: latest
 
-    - name: Install kubeadm, kubelet, kubectl
-      yum:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-        state: present
-        disable_gpg_check: yes
-
-    - name: Enable and start kubelet
-      systemd:
-        name: kubelet
-        enabled: yes
+    - name: Run Flask app container
+      docker_container:
+        name: flask-app
+        image: dinesh06092016/flask-app:latest
         state: started
-
-    #############################
+        restart_policy: always
+        ports:
+          - "5000:5000"
