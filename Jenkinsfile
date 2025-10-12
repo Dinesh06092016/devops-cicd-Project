@@ -2,9 +2,8 @@ pipeline {
     agent any
 
     environment {
-        // Replace these with the actual Jenkins credential IDs
-        AWS_ACCESS_KEY_ID     = credentials('aws-access-key')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
+        AWS_ACCESS_KEY_ID     = credentials('aws-cred')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-cred')
     }
 
     stages {
@@ -24,15 +23,9 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-cred', 
-                    usernameVariable: 'DOCKER_USER', 
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push dinesh06092016/flask-app:latest
-                    '''
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', passwordVariable: 'DOCKER_HUB_CREDENTIALS_PSW', usernameVariable: 'DOCKER_HUB_CREDENTIALS')]) {
+                    sh 'echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS --password-stdin'
+                    sh 'docker push dinesh06092016/flask-app:latest'
                 }
             }
         }
@@ -60,7 +53,4 @@ pipeline {
             echo 'Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed. Check logs for details.'
-        }
-    }
-}
+            echo 'Pipeline failed. Check the logs for deta
