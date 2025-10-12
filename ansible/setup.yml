@@ -1,17 +1,14 @@
----
 - name: Setup EC2 instances for Kubernetes
   hosts: all
   become: yes
-  vars:
-    docker_version: "20.10"
 
   tasks:
     - name: Ensure system is updated (skip broken repos)
       yum:
         name: "*"
         state: latest
-        disable_repo:
-          - kubernetes  # skip Kubernetes repo during full system update
+        disablerepo: kubernetes    # correct parameter
+        skip_broken: yes           # skip broken packages instead of failing
 
     - name: Install required packages
       yum:
@@ -22,27 +19,7 @@
           - git
         state: present
 
-    - name: Add Docker repository
-      yum_repository:
-        name: docker
-        description: Docker CE Stable - x86_64
-        baseurl: https://download.docker.com/linux/centos/7/x86_64/stable
-        gpgcheck: yes
-        gpgkey: https://download.docker.com/linux/centos/gpg
-        state: present
-
-    - name: Install Docker
-      yum:
-        name: "docker-ce-{{ docker_version }}*"
-        state: present
-
-    - name: Enable and start Docker
-      systemd:
-        name: docker
-        enabled: yes
-        state: started
-
-    - name: Add Kubernetes repository
+    - name: Add Kubernetes repo
       yum_repository:
         name: kubernetes
         description: Kubernetes
@@ -53,6 +30,7 @@
           - https://packages.cloud.google.com/yum/doc/yum-key.gpg
           - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
         state: present
+        skip_if_unavailable: yes   # Skip if the repo is temporarily down
 
     - name: Install Kubernetes components
       yum:
@@ -62,22 +40,4 @@
           - kubectl
         state: present
         enablerepo: kubernetes
-
-    - name: Enable and start kubelet
-      systemd:
-        name: kubelet
-        enabled: yes
-        state: started
-
-    - name: Disable SELinux temporarily
-      command: setenforce 0
-      ignore_errors: yes
-
-    - name: Disable swap
-      command: swapoff -a
-
-    - name: Persist swap off in /etc/fstab
-      lineinfile:
-        path: /etc/fstab
-        regexp: 'swap'
-        state: absent
+        skip_broken: yes           # Skip any broken packages
