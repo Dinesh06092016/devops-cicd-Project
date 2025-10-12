@@ -24,8 +24,10 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', passwordVariable: 'DOCKER_HUB_CREDENTIALS_PSW', usernameVariable: 'DOCKER_HUB_CREDENTIALS')]) {
-                    sh 'echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS --password-stdin'
-                    sh 'docker push dinesh06092016/flask-app:latest'
+                    sh '''
+                        echo $DOCKER_HUB_CREDENTIALS_PSW | docker login -u $DOCKER_HUB_CREDENTIALS --password-stdin
+                        docker push dinesh06092016/flask-app:latest
+                    '''
                 }
             }
         }
@@ -53,4 +55,7 @@ pipeline {
             echo 'Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed. Check the logs for deta
+            echo 'Pipeline failed. Check the logs for details.'
+        }
+    }
+}
