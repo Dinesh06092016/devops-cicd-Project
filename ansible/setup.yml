@@ -2,48 +2,51 @@
 - name: Setup Kubernetes nodes on Amazon Linux
   hosts: all
   become: yes
-  tasks:
 
+  tasks:
     - name: Update yum and install dependencies
       yum:
         name:
-          - yum-utils
-          - device-mapper-persistent-data
-          - lvm2
-          - curl
           - git
+          - curl
+          - wget
+          - unzip
         state: present
         update_cache: yes
 
-    - name: Add Docker repo
-      command: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-      args:
-        creates: /etc/yum.repos.d/docker-ce.repo
+    - name: Install Docker on Amazon Linux 2
+      shell: |
+        amazon-linux-extras install docker -y
+        systemctl enable docker
+        systemctl start docker
 
-    - name: Install Docker
-      yum:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-        state: present
-
-    - name: Start and enable Docker
-      systemd:
-        name: docker
-        state: started
-        enabled: yes
-
-    - name: Add ec2-user to docker group
+    - name: Add ec2-user to Docker group
       user:
         name: ec2-user
         groups: docker
         append: yes
 
-    - name: Verify Docker installation
-      command: docker --version
-      register: docker_version
+    - name: Install Kubernetes tools (kubectl, kubeadm, kubelet)
+      shell: |
+        cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+        [kubernetes]
+        name=Kubernetes
+        baseurl=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+        enabled=1
+        gpgcheck=1
+        gpgkey=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+        exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+        EOF
+        yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+        systemctl enable kubelet
+        systemctl start kubelet
 
-    - name: Show Docker version
-      debug:
-        msg: "{{ docker_version.stdout }}"
+    - name: Verify Docker and Kubernetes installation
+      shell: |
+        docker --version
+        kubeadm version
+        kubectl version --client
+      register: verify_output
+
+    - debug:
+        msg: "{{ verify_output.stdout_lines }}"
