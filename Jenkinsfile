@@ -2,34 +2,31 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "dinesh06092016/flask-app"
+        DOCKER_HUB_REPO = 'dinesh06092016/flask-app'
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Git Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/Dinesh06092016/devops-cicd-project.git'
+                git branch: 'main', url: 'https://github.com/Dinesh06092016/devops-cicd-Project.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    def imageTag = "${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
-                    sh "docker build -t ${imageTag} -f app/Dockerfile app"
+                    sh 'docker build -t $DOCKER_HUB_REPO:${BUILD_NUMBER} .'
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        def imageTag = "${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
-                        sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-                        sh "docker push ${imageTag}"
-                    }
+                withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $DOCKER_HUB_REPO:${BUILD_NUMBER}
+                    '''
                 }
             }
         }
@@ -38,42 +35,29 @@ pipeline {
             steps {
                 dir('terraform') {
                     withCredentials([usernamePassword(credentialsId: 'aws-cred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    sh """
-                        terraform init
-                        terraform apply -auto-approve
-                    """
+                        sh '''
+                            terraform init
+                            terraform apply -auto-approve
+                        '''
+                    }
                 }
             }
         }
 
-        stage('Ansible Deploy') {
+        stage('Deploy with Ansible') {
             steps {
                 dir('ansible') {
-                    sh """
-                        ansible-playbook -i hosts.ini setup.yml
-                    """
-                }
-            }
-        }
-
-        stage('Kubernetes Deploy') {
-            steps {
-                dir('k8s') {
-                    sh """
-                        kubectl apply -f deployment.yaml
-                        kubectl apply -f service.yaml
-                    """
+                    sh '''
+                        ansible-playbook -i inventory main.yml
+                    '''
                 }
             }
         }
     }
 
     post {
-        success {
-            echo "Pipeline executed successfully!"
-        }
-        failure {
-            echo "Pipeline failed. Please check logs."
+        always {
+            echo 'Pipeline completed.'
         }
     }
 }
